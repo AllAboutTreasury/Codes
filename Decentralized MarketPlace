@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Marketplace {
+    enum State {ItemAvailable, OfferPlaced, Accepted}
+
+    struct Item {
+        address owner;
+        string itemName;
+        uint256 price;
+        State state;
+        address buyer;
+    }
+
+    mapping(uint256 => Item) public items;
+    uint256 public itemCount;
+
+    event ItemAvailable(uint256 itemId, string itemName, uint256 price);
+    event OfferPlaced(uint256 itemId, address buyer);
+    event Accepted(uint256 itemId, address buyer);
+
+    function makeItemAvailable(string memory _itemName, uint256 _price) public {
+        itemCount++;
+        items[itemCount] = Item({
+            owner: msg.sender,
+            itemName: _itemName,
+            price: _price,
+            state: State.ItemAvailable,
+            buyer: address(0)
+        });
+        emit ItemAvailable(itemCount, _itemName, _price);
+    }
+
+    function makeOffer(uint256 _itemId) public payable {
+        Item storage item = items[_itemId];
+        require(item.state == State.ItemAvailable, "Item not available");
+        require(msg.value >= item.price, "Insufficient funds");
+
+        item.state = State.OfferPlaced;
+        item.buyer = msg.sender;
+        emit OfferPlaced(_itemId, msg.sender);
+    }
+
+    function acceptOffer(uint256 _itemId) public {
+        Item storage item = items[_itemId];
+        require(item.state == State.OfferPlaced, "No offer placed");
+        require(msg.sender == item.owner, "Only the owner can accept the offer");
+
+        item.state = State.Accepted;
+        payable(item.owner).transfer(item.price);
+        emit Accepted(_itemId, item.buyer);
+    }
+
+    function rejectOffer(uint256 _itemId) public {
+        Item storage item = items[_itemId];
+        require(item.state == State.OfferPlaced, "No offer placed");
+        require(msg.sender == item.owner, "Only the owner can reject the offer");
+
+        item.state = State.ItemAvailable;
+        item.buyer = address(0);
+    }
+}
